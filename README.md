@@ -29,11 +29,11 @@ Open `http://127.0.0.1:3000`.
 
 ## AI coding agents
 
-I used an AI coding agent to scaffold the app, generate the mock alert dataset, build the first pass of the UI, and run local lint/build verification. I delegated repetitive implementation work such as fixture generation, layout scaffolding, and style iteration. I overrode the initial output when choosing the final UX improvement, tightening the README to match the prompt, refining the queue interactions, and defining the optimistic concurrency approach for status updates.
+I used AI coding agents as implementation accelerators rather than as decision-makers. I defined the scope, interaction model, and acceptance criteria up front, then used AI to speed up scaffolding, mock data generation, UI iteration, and local verification. I delegated repetitive build work, but kept product and engineering judgment in the loop: I selected the final UX improvement, refined the queue behavior and visual hierarchy, rewrote the README to map cleanly to the prompt, and chose the optimistic concurrency pattern for status updates. In other words, AI helped compress execution time, while the system design, trade-off decisions, and final quality bar remained mine.
 
 ## Production follow-up
 
-For a real system I would move filtering, sorting, and pagination server-side; persist alerts and status history in a database; add authentication, authorization, and an audit log; validate allowed status transitions at the API boundary; and add API/browser tests plus monitoring around conflict handling and failed updates.
+For a real system I would move filtering, sorting, and pagination server-side; persist alerts and status history in a database; add authentication, authorization, and an audit log; validate allowed status transitions at the API boundary; add API/browser tests plus monitoring around conflict handling and failed updates; and consider a derived triage priority score with a suggested next action so analysts can decide which alert to review first without changing the original detector severity.
 
 Representative SQL for the status update:
 
