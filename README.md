@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Alert Triage Mini-View
 
-## Getting Started
+A compact SOC analyst workspace built with Next.js 16, React 19, and TypeScript. It loads 200 mock alerts from `public/alerts.json` and supports combined filtering, free-text search, sorting, detail review, and in-memory status changes.
 
-First, run the development server:
+## Run locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Run `npm run generate:data` to regenerate the deterministic mock alert file, or `npm run build` for a production check.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Decisions and trade-offs
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Local state over a state library:** the view has one owner for alerts and filters, so React state keeps the update path explicit without adding dependencies.
+- **JSON fixture over a mock server:** the exercise asks to load a provided file; a static JSON response closely represents that contract and keeps local setup instant.
+- **Dense split-pane layout:** the queue remains visible while evidence is reviewed. Below 900px the detail view becomes a full-width drawer.
+- **Client-side operations:** filtering and sorting 200 records is immediate. A production queue would move these operations server-side and use cursor pagination or virtualization.
+- **Status updates are intentionally in memory:** this satisfies the requested behavior. The included API route demonstrates the production write contract but is not coupled to the demo UI.
 
-## Learn More
+## UX improvement
 
-To learn more about Next.js, take a look at the following resources:
+Keyboard triage lets analysts use `J/K` to move through the queue, `O/P/R` to set Open, In progress, or Resolved, and `/` to focus search. This reduces repetitive pointer movement when processing a high-volume queue. Shortcuts are disabled while form fields are focused.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Status API and concurrency
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`PATCH /api/alerts/:id/status`
 
-## Deploy on Vercel
+```json
+{ "status": "resolved", "version": 1 }
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The route returns the incremented version. If the submitted version is stale, it returns `409 Conflict` with the current record. In a real database this becomes an atomic optimistic-lock update:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```sql
+UPDATE alerts
+SET status = $1, version = version + 1, updated_at = NOW()
+WHERE id = $2 AND version = $3
+RETURNING *;
+```
+
+No returned row means another analyst won the update. The client should fetch the latest record, show the conflicting change, and ask the analyst to confirm or retry. Production would also add authentication, authorization, an append-only audit log, validation at the API boundary, and structured observability.
+
+## AI usage
+
+I used an AI coding agent to scaffold the project, generate representative mock data, implement the initial UI and CSS, and run lint/build checks. I delegated repetitive component and fixture work, then reviewed the information hierarchy, narrowed the state model, chose optimistic concurrency for the API, and verified responsive behavior and keyboard edge cases. For production I would add unit tests around filter/sort reducers, API integration tests for conflicts, browser tests for keyboard flow, and validation against real alert payloads before shipping.
