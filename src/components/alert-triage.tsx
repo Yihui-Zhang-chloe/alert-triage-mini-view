@@ -30,6 +30,7 @@ export default function AlertTriage() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [needsAttentionOnly, setNeedsAttentionOnly] = useState(false);
   const [severity, setSeverity] = useState<Severity | "all">("all");
   const [status, setStatus] = useState<AlertStatus | "all">("all");
   const [source, setSource] = useState("all");
@@ -60,6 +61,12 @@ export default function AlertTriage() {
   const filteredAlerts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return alerts
+      .filter((alert) => {
+        if (!needsAttentionOnly) return true;
+        const isHighPriority = alert.severity === "critical" || alert.severity === "high";
+        const isUnresolved = alert.status === "open" || alert.status === "in_progress";
+        return isHighPriority && isUnresolved;
+      })
       .filter((alert) => severity === "all" || alert.severity === severity)
       .filter((alert) => status === "all" || alert.status === status)
       .filter((alert) => source === "all" || alert.source === source)
@@ -75,12 +82,16 @@ export default function AlertTriage() {
         if (sortKey === "title") comparison = a.title.localeCompare(b.title);
         return sortDirection === "asc" ? comparison : -comparison;
       });
-  }, [alerts, query, severity, source, sortDirection, sortKey, status]);
+  }, [alerts, needsAttentionOnly, query, severity, source, sortDirection, sortKey, status]);
 
   const selectedAlert = alerts.find((alert) => alert.id === selectedId) ?? null;
-  const activeFilterCount = [query, severity !== "all", status !== "all", source !== "all"].filter(Boolean).length;
+  const activeFilterCount = [query, needsAttentionOnly, severity !== "all", status !== "all", source !== "all"].filter(Boolean).length;
   const openCount = alerts.filter((alert) => alert.status === "open" || alert.status === "in_progress").length;
   const criticalCount = alerts.filter((alert) => alert.severity === "critical" && !["resolved", "dismissed"].includes(alert.status)).length;
+  const needsAttentionCount = alerts.filter((alert) => (
+    (alert.severity === "critical" || alert.severity === "high")
+    && (alert.status === "open" || alert.status === "in_progress")
+  )).length;
   const sortDirectionLabel = sortKey === "createdAt"
     ? (sortDirection === "desc" ? "Newest first" : "Oldest first")
     : sortKey === "severity"
@@ -88,7 +99,7 @@ export default function AlertTriage() {
       : (sortDirection === "desc" ? "Z to A" : "A to Z");
 
   const clearFilters = () => {
-    setQuery(""); setSeverity("all"); setStatus("all"); setSource("all");
+    setQuery(""); setNeedsAttentionOnly(false); setSeverity("all"); setStatus("all"); setSource("all");
   };
 
   const changeStatus = useCallback((id: string, nextStatus: AlertStatus) => {
@@ -168,6 +179,16 @@ export default function AlertTriage() {
             {sources.map((item) => <option key={item} value={item}>{item}</option>)}
           </select><ChevronDown size={14} />
         </div>
+        <button
+          type="button"
+          className={`attention-filter ${needsAttentionOnly ? "active" : ""}`}
+          aria-pressed={needsAttentionOnly}
+          onClick={() => setNeedsAttentionOnly((value) => !value)}
+        >
+          <AlertTriangle size={15} />
+          <span>Needs Attention</span>
+          <b>{needsAttentionCount}</b>
+        </button>
         {activeFilterCount > 0 && <button className="clear-button" onClick={clearFilters}><FilterX size={15} /> Clear <span>{activeFilterCount}</span></button>}
       </section>
 

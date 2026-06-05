@@ -1,6 +1,6 @@
 # Alert Triage Mini-View
 
-A compact SOC analyst workspace built with Next.js 16, React 19, and TypeScript. It loads 200 mock alerts from `public/alerts.json` and supports combined filtering, free-text search, sorting, detail review, and in-memory status changes.
+Next.js + TypeScript take-home for a SOC-style triage workflow. The page loads 200 mock alerts from `public/alerts.json` and supports queue review, filtering, detail inspection, and in-memory status changes.
 
 ## Run locally
 
@@ -9,29 +9,33 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Run `npm run generate:data` to regenerate the deterministic mock alert file, or `npm run build` for a production check.
+Open `http://127.0.0.1:3000`.
 
-## Decisions and trade-offs
+## Scope delivered
 
-- **Local state over a state library:** the view has one owner for alerts and filters, so React state keeps the update path explicit without adding dependencies.
-- **JSON fixture over a mock server:** the exercise asks to load a provided file; a static JSON response closely represents that contract and keeps local setup instant.
-- **Dense split-pane layout:** the queue remains visible while evidence is reviewed. Below 900px the detail view becomes a full-width drawer.
-- **Client-side operations:** filtering and sorting 200 records is immediate. A production queue would move these operations server-side and use cursor pagination or virtualization.
-- **Status updates are intentionally in memory:** this satisfies the requested behavior. The included API route demonstrates the production write contract but is not coupled to the demo UI.
+- Sortable and filterable alert list with severity, status, source, free-text search, and sort direction.
+- Detail panel on desktop and drawer on mobile when an alert is selected.
+- In-memory status update flow with immediate UI feedback.
+- UX improvement: `Needs Attention` one-click filter for unresolved `critical/high` alerts. Rationale: it reduces filter setup time by surfacing the highest-priority unresolved alerts in one click.
+- Minimal backend shape for a real status update path: `PATCH /api/alerts/:id/status` plus optimistic concurrency using `version`.
 
-## UX improvement
+## Key decisions and trade-offs
 
-Keyboard triage lets analysts use `J/K` to move through the queue, `O/P/R` to set Open, In progress, or Resolved, and `/` to focus search. This reduces repetitive pointer movement when processing a high-volume queue. Shortcuts are disabled while form fields are focused.
+- I kept state local to the page because the workflow is single-page and the update path is simple.
+- I used a static JSON file instead of a mock backend because the exercise explicitly centers on loading a provided dataset.
+- Filtering and sorting run client-side because 200 records are small enough to keep interaction instant.
+- I used a dense split layout so analysts can keep queue context visible while reviewing one alert.
+- The demo updates status in memory only; the included API route is there to show how the write contract would look in a real system.
 
-## Status API and concurrency
+## AI coding agents
 
-`PATCH /api/alerts/:id/status`
+I used an AI coding agent to scaffold the app, generate the mock alert dataset, build the first pass of the UI, and run local lint/build verification. I delegated repetitive implementation work such as fixture generation, layout scaffolding, and style iteration. I overrode the initial output when choosing the final UX improvement, tightening the README to match the prompt, refining the queue interactions, and defining the optimistic concurrency approach for status updates.
 
-```json
-{ "status": "resolved", "version": 1 }
-```
+## Production follow-up
 
-The route returns the incremented version. If the submitted version is stale, it returns `409 Conflict` with the current record. In a real database this becomes an atomic optimistic-lock update:
+For a real system I would move filtering, sorting, and pagination server-side; persist alerts and status history in a database; add authentication, authorization, and an audit log; validate allowed status transitions at the API boundary; and add API/browser tests plus monitoring around conflict handling and failed updates.
+
+Representative SQL for the status update:
 
 ```sql
 UPDATE alerts
@@ -40,8 +44,4 @@ WHERE id = $2 AND version = $3
 RETURNING *;
 ```
 
-No returned row means another analyst won the update. The client should fetch the latest record, show the conflicting change, and ask the analyst to confirm or retry. Production would also add authentication, authorization, an append-only audit log, validation at the API boundary, and structured observability.
-
-## AI usage
-
-I used an AI coding agent to scaffold the project, generate representative mock data, implement the initial UI and CSS, and run lint/build checks. I delegated repetitive component and fixture work, then reviewed the information hierarchy, narrowed the state model, chose optimistic concurrency for the API, and verified responsive behavior and keyboard edge cases. For production I would add unit tests around filter/sort reducers, API integration tests for conflicts, browser tests for keyboard flow, and validation against real alert payloads before shipping.
+If no row is returned, the API should respond with `409 Conflict` so the client can refresh the latest alert state instead of overwriting another analyst's change.
