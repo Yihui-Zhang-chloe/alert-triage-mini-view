@@ -5,6 +5,7 @@ import {
   CircleDot, Clock3, FilterX, Keyboard, Search, ShieldCheck, SlidersHorizontal, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getPriorityInsight } from "@/lib/priority";
 import type { Alert, AlertStatus, Severity, SortDirection, SortKey } from "@/lib/types";
 
 const severityWeight: Record<Severity, number> = { critical: 4, high: 3, medium: 2, low: 1 };
@@ -58,6 +59,11 @@ export default function AlertTriage() {
     [alerts],
   );
 
+  const priorityById = useMemo(
+    () => Object.fromEntries(alerts.map((alert) => [alert.id, getPriorityInsight(alert)])),
+    [alerts],
+  );
+
   const filteredAlerts = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return alerts
@@ -80,11 +86,13 @@ export default function AlertTriage() {
         if (sortKey === "createdAt") comparison = Date.parse(a.createdAt) - Date.parse(b.createdAt);
         if (sortKey === "severity") comparison = severityWeight[a.severity] - severityWeight[b.severity];
         if (sortKey === "title") comparison = a.title.localeCompare(b.title);
+        if (sortKey === "priority") comparison = priorityById[a.id].score - priorityById[b.id].score;
         return sortDirection === "asc" ? comparison : -comparison;
       });
-  }, [alerts, needsAttentionOnly, query, severity, source, sortDirection, sortKey, status]);
+  }, [alerts, needsAttentionOnly, priorityById, query, severity, source, sortDirection, sortKey, status]);
 
   const selectedAlert = alerts.find((alert) => alert.id === selectedId) ?? null;
+  const selectedPriority = selectedAlert ? priorityById[selectedAlert.id] : null;
   const activeFilterCount = [query, needsAttentionOnly, severity !== "all", status !== "all", source !== "all"].filter(Boolean).length;
   const openCount = alerts.filter((alert) => alert.status === "open" || alert.status === "in_progress").length;
   const criticalCount = alerts.filter((alert) => alert.severity === "critical" && !["resolved", "dismissed"].includes(alert.status)).length;
@@ -96,7 +104,9 @@ export default function AlertTriage() {
     ? (sortDirection === "desc" ? "Newest first" : "Oldest first")
     : sortKey === "severity"
       ? (sortDirection === "desc" ? "High to low" : "Low to high")
-      : (sortDirection === "desc" ? "Z to A" : "A to Z");
+      : sortKey === "priority"
+        ? (sortDirection === "desc" ? "Highest first" : "Lowest first")
+        : (sortDirection === "desc" ? "Z to A" : "A to Z");
 
   const clearFilters = () => {
     setQuery(""); setNeedsAttentionOnly(false); setSeverity("all"); setStatus("all"); setSource("all");
@@ -202,7 +212,7 @@ export default function AlertTriage() {
             <div className="sort-control">
               <SlidersHorizontal size={14} />
               <select aria-label="Sort alerts" value={sortKey} onChange={(event) => setSortKey(event.target.value as SortKey)}>
-                <option value="createdAt">Date</option><option value="severity">Severity</option><option value="title">Title</option>
+                <option value="createdAt">Date</option><option value="severity">Severity</option><option value="priority">Priority</option><option value="title">Title</option>
               </select>
               <button aria-label={`Sort direction: ${sortDirectionLabel}`} title="Reverse sort order" onClick={() => setSortDirection((value) => value === "asc" ? "desc" : "asc")}>
                 {sortDirection === "desc" ? <ArrowDown size={15} /> : <ArrowUp size={15} />}
@@ -217,16 +227,18 @@ export default function AlertTriage() {
             {!loading && filteredAlerts.length === 0 && (
               <div className="empty-state"><Search size={26} /><strong>No alerts match</strong><p>Adjust or clear the current filters.</p><button onClick={clearFilters}>Clear filters</button></div>
             )}
-            {filteredAlerts.map((alert) => (
+            {filteredAlerts.map((alert) => {
+              const priority = priorityById[alert.id];
+              return (
               <button type="button" role="option" aria-selected={selectedId === alert.id}
                 className={`alert-row ${selectedId === alert.id ? "selected" : ""}`} key={alert.id} onClick={() => setSelectedId(alert.id)}>
-                <span className="alert-main"><i className={`severity-bar ${alert.severity}`} /><span><strong>{alert.title}</strong><small><b className={`severity-label ${alert.severity}`}>{alert.severity}</b>{alert.id} / {alert.asset}</small></span></span>
+                <span className="alert-main"><i className={`severity-bar ${alert.severity}`} /><span><strong>{alert.title}</strong><small><b className={`severity-label ${alert.severity}`}>{alert.severity}</b><b className={`priority-chip ${priority.label}`}>P{priority.score}</b>{alert.id} / {alert.asset}</small></span></span>
                 <span className="source-cell"><i>{alert.source.slice(0, 1)}</i>{alert.source}</span>
                 <span><b className={`status-pill ${alert.status}`}>{statusLabels[alert.status]}</b></span>
                 <span className="time-cell" title={formatDate(alert.createdAt)}>{relativeTime(alert.createdAt)}</span>
                 <ChevronRight size={16} className="row-chevron" />
               </button>
-            ))}
+            )})}
           </div>
         </section>
 
@@ -240,6 +252,15 @@ export default function AlertTriage() {
               <div className="detail-scroll">
                 <h2>{selectedAlert.title}</h2>
                 <p className="detail-description">{selectedAlert.description}</p>
+                {selectedPriority && (
+                  <section className="priority-card">
+                    <div className="priority-head">
+                      <span className={`priority-badge ${selectedPriority.label}`}>Priority {selectedPriority.score} / 100</span>
+                      <strong>{selectedPriority.suggestedAction}</strong>
+                    </div>
+                    <p>Priority reason: {selectedPriority.reason}</p>
+                  </section>
+                )}
                 <div className="status-action">
                   <label htmlFor="alert-status"><span className={`status-dot ${selectedAlert.status}`} />Disposition</label>
                   <div className="detail-select">

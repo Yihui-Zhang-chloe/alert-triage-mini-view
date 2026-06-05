@@ -17,13 +17,14 @@ Open `http://127.0.0.1:3000`.
 - Detail panel on desktop and drawer on mobile when an alert is selected.
 - In-memory status update flow with immediate UI feedback.
 - UX improvement: `Needs Attention` one-click filter for unresolved `critical/high` alerts. Rationale: it reduces filter setup time by surfacing the highest-priority unresolved alerts in one click.
+- Derived triage priority score with a suggested next action and a priority reason, so analysts can see not just severity but also which alert should be reviewed first.
 - Minimal backend shape for a real status update path: `PATCH /api/alerts/:id/status` plus optimistic concurrency using `version`.
 
 ## Key decisions and trade-offs
 
 - I kept state local to the page because the workflow is single-page and the update path is simple.
 - I used a static JSON file instead of a mock backend because the exercise explicitly centers on loading a provided dataset.
-- Filtering and sorting run client-side because 200 records are small enough to keep interaction instant.
+- Filtering, sorting, and the derived priority score run client-side because 200 records are small enough to keep interaction instant.
 - I used a dense split layout so analysts can keep queue context visible while reviewing one alert.
 - The demo updates status in memory only; the included API route is there to show how the write contract would look in a real system.
 
@@ -33,7 +34,7 @@ I used AI coding agents as implementation accelerators rather than as decision-m
 
 ## Production follow-up
 
-For a real system I would move filtering, sorting, and pagination server-side; persist alerts and status history in a database; add authentication, authorization, and an audit log; validate allowed status transitions at the API boundary; add API/browser tests plus monitoring around conflict handling and failed updates; and consider a derived triage priority score with a suggested next action so analysts can decide which alert to review first without changing the original detector severity.
+For a real system I would move filtering, sorting, pagination, and priority scoring server-side; persist alerts and status history in a database; add authentication, authorization, and an audit log; validate allowed status transitions at the API boundary; and add API/browser tests plus monitoring around conflict handling and failed updates. I would also tune the priority model with richer signals such as asset criticality, historical recurrence, analyst assignment, and suppression rules, rather than relying only on the lightweight heuristic used in this mock implementation.
 
 Representative SQL for the status update:
 

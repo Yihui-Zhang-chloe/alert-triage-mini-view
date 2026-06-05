@@ -19,5 +19,5 @@ export type Alert = {
   version: number;
 };
 
-export type SortKey = "createdAt" | "severity" | "title";
+export type SortKey = "createdAt" | "severity" | "title" | "priority";
 export type SortDirection = "asc" | "desc";
